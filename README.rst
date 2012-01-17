@@ -18,3 +18,8 @@ Documentation can be seen below::
       -h, --help           show this help message and exit
       -n NAME, -name NAME  Provide the name for the online repository
       -r REPO, -repo REPO  The location of the repository to cloudify
+
+You can find the GrimRepo hiding at both BitBucket_ and GitHub_ - though I'd watch out for his scythe.
+
+.. _BitBucket: https://bitbucket.org/Smerity/grimrepo
+.. _GitHub: https://github.com/Smerity/grimrepo
