@@ -1,0 +1,81 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+"""
+GrimRepo
+========
+
+Automatically create and set remote private Git repository at BitBucket
+"""
+import argparse
+import getpass
+import git
+import os
+import requests
+
+def get_auth(help=""):
+  """
+  Prompt for and retrieve username and password
+  """
+  # TODO: Check for user in Git config first
+  if help: print help
+  user = raw_input("Username: ")
+  passwd = getpass.getpass()
+  return user, passwd
+
+def create_bitbucket_repo(name, scm="git", private=True):
+  """
+  Create a BitBucket repository
+  """
+  # Mercurial is supported but my focus, at least initially, is on Git
+  assert scm in ["git"], "The given Source Control Manager is not supported"
+  repo = {"name":name, "scm":scm, "is_private":"True" if private else "False"}
+  # TODO: There must be a better method of auth for the BitBucket API (SSH key, token, ..?)
+  r = requests.post("https://api.bitbucket.org/1.0/repositories/", auth=get_auth(), data=repo, timeout=2)
+  assert r.status_code == 200, "BitBucket server reports status code of %s" % r.status_code
+  # Craft the address of the repo (as it's not contained in the JSON output)
+  # The other option would be to list all the user repos and match on name
+  import json
+  details = json.loads(r.content)
+  repo_addr = "git@bitbucket.org:%s/%s.git" % (details["owner"], details["name"])
+  return repo_addr, details
+
+def get_repo(directory=None):
+  """
+  Return the repository at the given location or raise an error if one does not exist
+  If no directory is given, a new one may be created at the current working directory
+  """
+  if directory:
+    r = git.Repo(directory)
+  else:
+    r = git.Repo.init()
+  return r
+
+def add_remote(repo, name, addr):
+  remote = repo.create_remote(name, addr)
+
+def grimrepo_init(name=None, repo_loc=None):
+  # Unless specified, the name of the remote repository is the same as the repository directory
+  if not name:
+    # Normalization of path is necessary for A/B/ which can select "" instead of "B"
+    name = os.path.basename(os.path.normpath(repo_loc) if repo_loc else os.getcwd())
+  print "Creating repository at %s called %s" % (repo_loc if repo_loc else os.getcwd(), name)
+
+  repo = get_repo(repo_loc)
+  print "+ Creating remote BitBucket repo..."
+  addr, _ = create_bitbucket_repo(name)
+  print "+ Adding remote BitBucket address to repo config..."
+  add_remote(repo, "bitbucket", addr)
+
+if __name__ == "__main__":
+  parser = argparse.ArgumentParser(description="Utility to automatically mirror local Git repositories in the cloud")
+  parser.add_argument("-n", "-name", default=None, dest="name", action="store", help="Provide the name for the online repository")
+  parser.add_argument("-r", "-repo", default=None, dest="repo", action="store", help="The location of the repository to cloudify")
+  parser.add_argument("init", default=False, action="store", nargs="?", help="git init and add privately to the BitBucket cloud")
+  results = parser.parse_args()
+
+  # TODO: Work out how to do command style arguments properly i.e. "git init" => "grimrepo init"
+  if results.init == "init":
+    grimrepo_init(results.name, results.repo)
+  else:
+    parser.print_usage()
+    parser.exit(0)
